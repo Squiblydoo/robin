@@ -6,6 +6,7 @@ from scrape import scrape_multiple
 from search import get_search_results
 from llm import get_llm, refine_query, filter_results, generate_summary
 from llm_utils import get_model_choices
+from fork_analysis import analyze_repository_forks
 
 MODEL_CHOICES = get_model_choices()
 
@@ -101,6 +102,35 @@ def ui(ui_port, ui_host):
         "--global.developmentMode=false",
     ]
     sys.exit(stcli.main())
+
+
+@robin.command()
+@click.option("--owner", "-o", required=True, type=str, help="Repository owner (username or organization)")
+@click.option("--repo", "-r", required=True, type=str, help="Repository name")
+@click.option("--min-commits", "-c", default=1, show_default=True, type=int, help="Minimum commits ahead to report")
+@click.option("--output", "-f", type=str, help="Optional filename to save the report")
+def analyze_forks(owner, repo, min_commits, output):
+    """Analyze repository forks to find those ahead of the parent."""
+    try:
+        click.echo(f"\n🔍 Analyzing forks of {owner}/{repo}...")
+        
+        report = analyze_repository_forks(owner, repo, min_commits)
+        
+        click.echo(report)
+        
+        if output:
+            filename = output if output.endswith('.txt') else f"{output}.txt"
+            with open(filename, "w", encoding="utf-8") as f:
+                f.write(report)
+            click.echo(f"\n📄 Report saved to {filename}")
+            
+    except KeyboardInterrupt:
+        click.echo("\n\n[!] Operation cancelled by user. Exiting.")
+        sys.exit(0)
+    except Exception as e:
+        click.echo(f"\n[ERROR] An unexpected error occurred: {e}")
+        sys.exit(1)
+
 
 if __name__ == "__main__":
     robin()
