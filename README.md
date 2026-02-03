@@ -21,6 +21,7 @@
 - 🐳 **Docker-Ready** – Optional Docker deployment for clean, isolated usage.
 - 📝 **Custom Reporting** – Save investigation output to file for reporting or further analysis.
 - 🧩 **Extensible** – Easy to plug in new search engines, models, or output formats.
+- 🔍 **Fork Analysis** – Evaluate GitHub repository forks to discover those ahead of the parent.
 
 ---
 
@@ -82,6 +83,8 @@ python main.py cli -m gpt-4.1 -q "ransomware payments" -t 12
 
 ## Usage (CLI/Development Mode)
 
+### Dark Web OSINT Search
+
 ```bash
 Robin: AI-Powered Dark Web OSINT Tool
 
@@ -98,11 +101,31 @@ options:
                         current date and time is used.
 
 Example commands:
- - robin -m gpt4.1 -q "ransomware payments" -t 12
- - robin --model gpt4.1 --query "sensitive credentials exposure" --threads 8 --output filename
- - robin -m llama3.1 -q "zero days"
- - robin -m gemini-2.5-flash -q "zero days"
+ - robin cli -m gpt4.1 -q "ransomware payments" -t 12
+ - robin cli --model gpt4.1 --query "sensitive credentials exposure" --threads 8 --output filename
+ - robin cli -m llama3.1 -q "zero days"
+ - robin cli -m gemini-2.5-flash -q "zero days"
 ```
+
+### Fork Analysis
+
+Robin can analyze GitHub repository forks to identify forks that are substantially ahead of the parent repository.
+
+```bash
+robin analyze-forks --owner OWNER --repo REPO [OPTIONS]
+
+Options:
+  -o, --owner TEXT           Repository owner (username or organization) [required]
+  -r, --repo TEXT            Repository name [required]
+  -c, --min-commits INTEGER  Minimum commits ahead to report [default: 1]
+  -f, --output TEXT          Optional filename to save the report
+
+Example commands:
+ - robin analyze-forks --owner apurvsinghgautam --repo robin
+ - robin analyze-forks -o torproject -r tor -c 10 -f fork_report
+```
+
+**Note:** For better API rate limits, set the `GITHUB_TOKEN` environment variable with a personal access token. You can create one at https://github.com/settings/tokens
 
 ---
 

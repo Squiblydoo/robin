@@ -6,6 +6,7 @@ from scrape import scrape_multiple
 from search import get_search_results
 from llm_utils import BufferedStreamingHandler, get_model_choices
 from llm import get_llm, refine_query, filter_results, generate_summary
+from fork_analysis import analyze_repository_forks
 
 
 def _render_pipeline_error(stage: str, err: Exception) -> None:
@@ -86,133 +87,203 @@ st.sidebar.text("AI-Powered Dark Web OSINT Tool")
 st.sidebar.markdown(
     """Made by [Apurv Singh Gautam](https://www.linkedin.com/in/apurvsinghgautam/)"""
 )
-st.sidebar.subheader("Settings")
-model_options = get_model_choices()
-default_model_index = (
-    next(
-        (idx for idx, name in enumerate(model_options) if name.lower() == "gpt4o"),
-        0,
+
+# Add tabs for different features
+tab1, tab2 = st.tabs(["🕵️ Dark Web OSINT", "🔍 Fork Analysis"])
+
+with tab1:
+    # Dark Web OSINT Tab
+    st.sidebar.subheader("OSINT Settings")
+    model_options = get_model_choices()
+    default_model_index = (
+        next(
+            (idx for idx, name in enumerate(model_options) if name.lower() == "gpt4o"),
+            0,
+        )
+        if model_options
+        else 0
     )
-    if model_options
-    else 0
-)
-model = st.sidebar.selectbox(
-    "Select LLM Model",
-    model_options,
-    index=default_model_index,
-    key="model_select",
-)
-if any(name not in {"gpt4o", "gpt-4.1", "claude-3-5-sonnet-latest", "llama3.1", "gemini-2.5-flash"} for name in model_options):
-    st.sidebar.caption("Locally detected Ollama models are automatically added to this list.")
-threads = st.sidebar.slider("Scraping Threads", 1, 16, 4, key="thread_slider")
-
-
-# Main UI - logo and input
-_, logo_col, _ = st.columns(3)
-with logo_col:
-    st.image(".github/assets/robin_logo.png", width=200)
-
-# Display text box and button
-with st.form("search_form", clear_on_submit=True):
-    col_input, col_button = st.columns([10, 1])
-    query = col_input.text_input(
-        "Enter Dark Web Search Query",
-        placeholder="Enter Dark Web Search Query",
-        label_visibility="collapsed",
-        key="query_input",
+    model = st.sidebar.selectbox(
+        "Select LLM Model",
+        model_options,
+        index=default_model_index,
+        key="model_select",
     )
-    run_button = col_button.form_submit_button("Run")
-
-# Display a status message
-status_slot = st.empty()
-# Pre-allocate three placeholders-one per card
-cols = st.columns(3)
-p1, p2, p3 = [col.empty() for col in cols]
-# Summary placeholders
-summary_container_placeholder = st.empty()
+    if any(name not in {"gpt4o", "gpt-4.1", "claude-3-5-sonnet-latest", "llama3.1", "gemini-2.5-flash"} for name in model_options):
+        st.sidebar.caption("Locally detected Ollama models are automatically added to this list.")
+    threads = st.sidebar.slider("Scraping Threads", 1, 16, 4, key="thread_slider")
 
 
-# Process the query
-if run_button and query:
-    # clear old state
-    for k in ["refined", "results", "filtered", "scraped", "streamed_summary"]:
-        st.session_state.pop(k, None)
+    # Main UI - logo and input
+    _, logo_col, _ = st.columns(3)
+    with logo_col:
+        st.image(".github/assets/robin_logo.png", width=200)
 
-    # Stage 1 - Load LLM
-    with status_slot.container():
-        with st.spinner("🔄 Loading LLM..."):
-            try:
-                llm = get_llm(model)
-            except Exception as e:
-                _render_pipeline_error("load the selected LLM", e)
+    # Display text box and button
+    with st.form("search_form", clear_on_submit=True):
+        col_input, col_button = st.columns([10, 1])
+        query = col_input.text_input(
+            "Enter Dark Web Search Query",
+            placeholder="Enter Dark Web Search Query",
+            label_visibility="collapsed",
+            key="query_input",
+        )
+        run_button = col_button.form_submit_button("Run")
 
-    # Stage 2 - Refine query
-    with status_slot.container():
-        with st.spinner("🔄 Refining query..."):
-            try:
-                st.session_state.refined = refine_query(llm, query)
-            except Exception as e:
-                _render_pipeline_error("refine the query", e)
-    p1.container(border=True).markdown(
-        f"<div class='colHeight'><p class='pTitle'>Refined Query</p><p>{st.session_state.refined}</p></div>",
-        unsafe_allow_html=True,
-    )
+    # Display a status message
+    status_slot = st.empty()
+    # Pre-allocate three placeholders-one per card
+    cols = st.columns(3)
+    p1, p2, p3 = [col.empty() for col in cols]
+    # Summary placeholders
+    summary_container_placeholder = st.empty()
 
-    # Stage 3 - Search dark web
-    with status_slot.container():
-        with st.spinner("🔍 Searching dark web..."):
-            st.session_state.results = cached_search_results(
-                st.session_state.refined, threads
-            )
-    p2.container(border=True).markdown(
-        f"<div class='colHeight'><p class='pTitle'>Search Results</p><p>{len(st.session_state.results)}</p></div>",
-        unsafe_allow_html=True,
-    )
 
-    # Stage 4 - Filter results
-    with status_slot.container():
-        with st.spinner("🗂️ Filtering results..."):
-            st.session_state.filtered = filter_results(
-                llm, st.session_state.refined, st.session_state.results
-            )
-    p3.container(border=True).markdown(
-        f"<div class='colHeight'><p class='pTitle'>Filtered Results</p><p>{len(st.session_state.filtered)}</p></div>",
-        unsafe_allow_html=True,
-    )
+    # Process the query
+    if run_button and query:
+        # clear old state
+        for k in ["refined", "results", "filtered", "scraped", "streamed_summary"]:
+            st.session_state.pop(k, None)
 
-    # Stage 5 - Scrape content
-    with status_slot.container():
-        with st.spinner("📜 Scraping content..."):
-            st.session_state.scraped = cached_scrape_multiple(
-                st.session_state.filtered, threads
-            )
+        # Stage 1 - Load LLM
+        with status_slot.container():
+            with st.spinner("🔄 Loading LLM..."):
+                try:
+                    llm = get_llm(model)
+                except Exception as e:
+                    _render_pipeline_error("load the selected LLM", e)
 
-    # Stage 6 - Summarize
-    # 6a) Prepare session state for streaming text
-    st.session_state.streamed_summary = ""
+        # Stage 2 - Refine query
+        with status_slot.container():
+            with st.spinner("🔄 Refining query..."):
+                try:
+                    st.session_state.refined = refine_query(llm, query)
+                except Exception as e:
+                    _render_pipeline_error("refine the query", e)
+        p1.container(border=True).markdown(
+            f"<div class='colHeight'><p class='pTitle'>Refined Query</p><p>{st.session_state.refined}</p></div>",
+            unsafe_allow_html=True,
+        )
 
-    # 6c) UI callback for each chunk
-    def ui_emit(chunk: str):
-        st.session_state.streamed_summary += chunk
-        summary_slot.markdown(st.session_state.streamed_summary)
+        # Stage 3 - Search dark web
+        with status_slot.container():
+            with st.spinner("🔍 Searching dark web..."):
+                st.session_state.results = cached_search_results(
+                    st.session_state.refined, threads
+                )
+        p2.container(border=True).markdown(
+            f"<div class='colHeight'><p class='pTitle'>Search Results</p><p>{len(st.session_state.results)}</p></div>",
+            unsafe_allow_html=True,
+        )
 
-    with summary_container_placeholder.container():  # border=True, height=450):
-        hdr_col, btn_col = st.columns([4, 1], vertical_alignment="center")
-        with hdr_col:
-            st.subheader(":red[Investigation Summary]", anchor=None, divider="gray")
-        summary_slot = st.empty()
+        # Stage 4 - Filter results
+        with status_slot.container():
+            with st.spinner("🗂️ Filtering results..."):
+                st.session_state.filtered = filter_results(
+                    llm, st.session_state.refined, st.session_state.results
+                )
+        p3.container(border=True).markdown(
+            f"<div class='colHeight'><p class='pTitle'>Filtered Results</p><p>{len(st.session_state.filtered)}</p></div>",
+            unsafe_allow_html=True,
+        )
 
-    # 6d) Inject your two callbacks and invoke exactly as before
-    with status_slot.container():
-        with st.spinner("✍️ Generating summary..."):
-            stream_handler = BufferedStreamingHandler(ui_callback=ui_emit)
-            llm.callbacks = [stream_handler]
-            _ = generate_summary(llm, query, st.session_state.scraped)
+        # Stage 5 - Scrape content
+        with status_slot.container():
+            with st.spinner("📜 Scraping content..."):
+                st.session_state.scraped = cached_scrape_multiple(
+                    st.session_state.filtered, threads
+                )
 
-    with btn_col:
-        now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-        fname = f"summary_{now}.md"
-        b64 = base64.b64encode(st.session_state.streamed_summary.encode()).decode()
-        href = f'<div class="aStyle">📥 <a href="data:file/markdown;base64,{b64}" download="{fname}">Download</a></div>'
-        st.markdown(href, unsafe_allow_html=True)
-    status_slot.success("✔️ Pipeline completed successfully!")
+        # Stage 6 - Summarize
+        # 6a) Prepare session state for streaming text
+        st.session_state.streamed_summary = ""
+
+        # 6c) UI callback for each chunk
+        def ui_emit(chunk: str):
+            st.session_state.streamed_summary += chunk
+            summary_slot.markdown(st.session_state.streamed_summary)
+
+        with summary_container_placeholder.container():  # border=True, height=450):
+            hdr_col, btn_col = st.columns([4, 1], vertical_alignment="center")
+            with hdr_col:
+                st.subheader(":red[Investigation Summary]", anchor=None, divider="gray")
+            summary_slot = st.empty()
+
+        # 6d) Inject your two callbacks and invoke exactly as before
+        with status_slot.container():
+            with st.spinner("✍️ Generating summary..."):
+                stream_handler = BufferedStreamingHandler(ui_callback=ui_emit)
+                llm.callbacks = [stream_handler]
+                _ = generate_summary(llm, query, st.session_state.scraped)
+
+        with btn_col:
+            now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            fname = f"summary_{now}.md"
+            b64 = base64.b64encode(st.session_state.streamed_summary.encode()).decode()
+            href = f'<div class="aStyle">📥 <a href="data:file/markdown;base64,{b64}" download="{fname}">Download</a></div>'
+            st.markdown(href, unsafe_allow_html=True)
+        status_slot.success("✔️ Pipeline completed successfully!")
+
+with tab2:
+    # Fork Analysis Tab
+    st.markdown("### 🔍 Repository Fork Analysis")
+    st.markdown("Analyze GitHub repository forks to identify those substantially ahead of the parent.")
+    
+    with st.form("fork_analysis_form"):
+        col1, col2 = st.columns(2)
+        with col1:
+            owner = st.text_input("Repository Owner", placeholder="e.g., apurvsinghgautam", help="GitHub username or organization")
+        with col2:
+            repo = st.text_input("Repository Name", placeholder="e.g., robin", help="Repository name")
+        
+        min_commits = st.slider("Minimum Commits Ahead", 1, 50, 1, help="Minimum number of commits ahead to be reported")
+        
+        analyze_button = st.form_submit_button("🔍 Analyze Forks", use_container_width=True)
+    
+    if analyze_button:
+        if not owner or not repo:
+            st.error("❌ Please provide both repository owner and name.")
+        else:
+            fork_status = st.empty()
+            fork_results = st.empty()
+            
+            with fork_status.container():
+                with st.spinner(f"🔄 Analyzing forks of {owner}/{repo}..."):
+                    try:
+                        report = analyze_repository_forks(owner, repo, min_commits)
+                        fork_status.success("✅ Analysis completed!")
+                        
+                        # Display the report
+                        fork_results.text_area(
+                            "Fork Analysis Report",
+                            value=report,
+                            height=400,
+                            label_visibility="collapsed"
+                        )
+                        
+                        # Add download button
+                        now = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+                        fname = f"fork_analysis_{owner}_{repo}_{now}.txt"
+                        b64 = base64.b64encode(report.encode()).decode()
+                        href = f'<div class="aStyle">📥 <a href="data:text/plain;base64,{b64}" download="{fname}">Download Report</a></div>'
+                        st.markdown(href, unsafe_allow_html=True)
+                        
+                    except Exception as e:
+                        fork_status.error(f"❌ Error during fork analysis: {str(e)}")
+    
+    # Add helpful information
+    with st.expander("ℹ️ About Fork Analysis"):
+        st.markdown("""
+        This feature analyzes GitHub repository forks to identify forks that have commits ahead of the parent repository.
+        
+        **How it works:**
+        1. Fetches all forks of the specified repository
+        2. Compares each fork with the parent repository
+        3. Identifies forks that are ahead (have additional commits)
+        4. Generates a report sorted by commits ahead
+        
+        **Note:** 
+        - For better API rate limits, set the `GITHUB_TOKEN` environment variable
+        - You can create a personal access token at https://github.com/settings/tokens
+        - Without authentication, you may hit rate limits on repositories with many forks
+        """)
