@@ -8,7 +8,8 @@
 </div>
 
 ![Demo](.github/assets/screen.png)
-![Demo](.github/assets/screen-ui.png)
+<img width="1846" height="865" alt="image" src="https://github.com/user-attachments/assets/2830daee-349e-4fcb-b630-c3bfa97290cf" />
+
 
 ---
 
@@ -346,3 +347,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - LLM Prompt inspiration from [OSINT-Assistant](https://github.com/AXRoux/OSINT-Assistant) repository
 - Logo Design by [Tanishq Rupaal](https://github.com/Tanq16/)
 - Workflow Design by [Chintan Gurjar](https://www.linkedin.com/in/chintangurjar)
+
