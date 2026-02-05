@@ -3,136 +3,346 @@
    <br><a href="https://github.com/apurvsinghgautam/robin/actions/workflows/binary.yml"><img alt="Build" src="https://github.com/apurvsinghgautam/robin/actions/workflows/binary.yml/badge.svg"></a> <a href="https://github.com/apurvsinghgautam/robin/releases"><img alt="GitHub Release" src="https://img.shields.io/github/v/release/apurvsinghgautam/robin"></a> <a href="https://hub.docker.com/r/apurvsg/robin"><img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/apurvsg/robin"></a>
    <h1>Robin: AI-Powered Dark Web OSINT Tool</h1>
 
-   <p>Robin is an AI-powered tool for conducting dark web OSINT investigations. It leverages LLMs to refine queries, filter search results from dark web search engines, and provide an investigation summary.</p>
-   <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#contributing">Contributing</a> &bull; <a href="#acknowledgements">Acknowledgements</a><br><br>
+   <p>Robin is an autonomous AI agent for conducting dark web OSINT investigations. Built with the Claude Agent SDK, it uses specialized sub-agents to search, scrape, and analyze dark web content through Tor.</p>
+   <a href="#installation">Installation</a> &bull; <a href="#usage">Usage</a> &bull; <a href="#architecture">Architecture</a> &bull; <a href="#contributing">Contributing</a><br><br>
 </div>
 
 ![Demo](.github/assets/screen.png)
 ![Demo](.github/assets/screen-ui.png)
-![Workflow](.github/assets/robin-workflow.png)
 
 ---
 
 ## Features
 
-- ⚙️ **Modular Architecture** – Clean separation between search, scrape, and LLM workflows.
-- 🤖 **Multi-Model Support** – Easily switch between OpenAI, Claude, Gemini or local models like Ollama.
-- 💻 **CLI-First Design** – Built for terminal warriors and automation ninjas.
-- 🐳 **Docker-Ready** – Optional Docker deployment for clean, isolated usage.
-- 📝 **Custom Reporting** – Save investigation output to file for reporting or further analysis.
-- 🧩 **Extensible** – Easy to plug in new search engines, models, or output formats.
+- **Autonomous Investigation** - Claude decides when to search, which results to scrape, and how to analyze
+- **Multi-Agent Architecture** - Specialized sub-agents for threat actors, IOCs, malware, and marketplaces
+- **Conversational Follow-ups** - Ask follow-up questions within the same session
+- **17 Dark Web Search Engines** - Concurrent searches across multiple .onion search engines
+- **Next.js Web Interface** - Modern web UI with SSE streaming, graph visualization, and report builder
+- **CLI & Interactive Modes** - Terminal-first design with optional interactive sessions
+- **Session Continuity** - Resume investigations with full context preserved
+- **Multiple LLM Support** - Use Claude (Anthropic) or Ollama for local models
 
 ---
 
-## ⚠️ Disclaimer
+## Architecture
+
+Robin uses a coordinator-subagent pattern powered by Claude Agent SDK:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    RobinAgent (Coordinator)                  │
+│                                                             │
+│  Tools:                                                     │
+│  • darkweb_search - Search 17 .onion search engines         │
+│  • darkweb_scrape - Extract content from .onion URLs        │
+│  • save_report - Export findings to markdown                │
+│  • delegate_analysis - Invoke specialized sub-agents        │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    Specialized Sub-Agents                    │
+├─────────────────┬─────────────────┬─────────────────────────┤
+│ ThreatActor     │ IOCExtractor    │ MalwareAnalyst          │
+│ Profiler        │                 │                         │
+│                 │                 │                         │
+│ Profiles APT    │ Extracts IPs,   │ Analyzes malware        │
+│ groups, threat  │ domains, hashes,│ families, capabilities, │
+│ actors, TTPs    │ crypto wallets  │ and mitigations         │
+├─────────────────┴─────────────────┴─────────────────────────┤
+│                 MarketplaceInvestigator                      │
+│                                                             │
+│     Investigates dark web markets, vendors, pricing         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Disclaimer
+
 > This tool is intended for educational and lawful investigative purposes only. Accessing or interacting with certain dark web content may be illegal depending on your jurisdiction. The author is not responsible for any misuse of this tool or the data gathered using it.
 >
 > Use responsibly and at your own risk. Ensure you comply with all relevant laws and institutional policies before conducting OSINT investigations.
->
-> Additionally, Robin leverages third-party APIs (including LLMs). Be cautious when sending potentially sensitive queries, and review the terms of service for any API or model provider you use.
+
+---
 
 ## Installation
-> [!NOTE]
-> The tool needs Tor to do the searches. You can install Tor using `apt install tor` on Linux/Windows(WSL) or `brew install tor` on Mac. Once installed, confirm if Tor is running in the background.
 
-> [!TIP]
-> You can provide OpenAI or Anthropic or Google API key by either creating .env file (refer to sample env file in the repo) or by setting env variables in PATH.
->
-> For Ollama, provide `http://host.docker.internal:11434` as `OLLAMA_BASE_URL` in your env if running using docker method or `http://127.0.0.1:11434` for other methods. You might need to serve Ollama on 0.0.0.0 depending on your OS. You can do by running `OLLAMA_HOST=0.0.0.0 ollama serve &` in your terminal.
+### Prerequisites
 
-### Docker (Web UI Mode) [Recommended]
+1. **Tor** - Required for dark web access
+   ```bash
+   # Linux/WSL
+   apt install tor
 
-- Pull the latest Robin docker image
-```bash
-docker pull apurvsg/robin:latest
-```
+   # macOS
+   brew install tor
+   ```
+   Ensure Tor is running: `systemctl status tor` or check port 9050
 
-- Run the docker image as:
-```bash
-docker run --rm \
-   -v "$(pwd)/.env:/app/.env" \
-   --add-host=host.docker.internal:host-gateway \
-   -p 8501:8501 \
-   apurvsg/robin:latest ui --ui-port 8501 --ui-host 0.0.0.0
-```
+2. **LLM Provider** (choose one):
 
-### Release Binary (CLI Mode)
+   **Option A: Anthropic API Key** (Cloud-based, recommended)
+   ```bash
+   export ANTHROPIC_API_KEY="your-key-here"
+   ```
 
-- Download the appropriate binary for your system from the [latest release](https://github.com/apurvsinghgautam/robin/releases/latest)
-- Unzip the file, make it executable 
-```bash
-chmod +x robin
-```
+   **Option B: Ollama** (Local models, free)
+   ```bash
+   # Install Ollama: https://ollama.ai
+   # Pull a model
+   ollama pull llama3.1
+   
+   # Ollama runs on http://127.0.0.1:11434 by default
+   export OLLAMA_BASE_URL="http://127.0.0.1:11434"
+   ```
 
-- Run the binary as:
-```bash
-robin cli --model gpt-4.1 --query "ransomware payments"
-```
-
-### Using Python (Development Version)
-
-- With `Python 3.10+` installed, run the following:
+### Install from Source
 
 ```bash
+# Clone repository
+git clone https://github.com/apurvsinghgautam/robin.git
+cd robin
+
+# Install dependencies
 pip install -r requirements.txt
-python main.py cli -m gpt-4.1 -q "ransomware payments" -t 12
+
+# Run CLI
+python main.py cli -q "ransomware payments 2024"
+```
+
+### Web Interface (Next.js + FastAPI)
+
+```bash
+# Install backend and frontend dependencies
+pip install -r backend/requirements.txt
+cd frontend && npm install
+
+# Run backend (in one terminal)
+cd backend && uvicorn app.main:app --reload
+
+# Run frontend (in another terminal)
+cd frontend && npm run dev
+```
+
+Open `http://localhost:3000` for the web interface.
+
+### Docker Deployment (Recommended for Production)
+
+```bash
+# Using the convenience script
+./robin.sh setup-auth  # Configure API keys
+./robin.sh up          # Start all services
+
+# Or with docker-compose directly
+docker-compose up -d
+```
+
+**Services:**
+- Frontend: `http://localhost:3000`
+- Backend API: `http://localhost:8000`
+- API Docs: `http://localhost:8000/docs`
+
+**Important:** After making code changes, rebuild the Docker images:
+```bash
+./robin.sh rebuild
+# Or: docker-compose build --no-cache && docker-compose up -d
+```
+
+See [DOCKER_TROUBLESHOOTING.md](DOCKER_TROUBLESHOOTING.md) for details on why rebuilds are needed.
+
+---
+
+## Usage
+
+### CLI Mode
+
+**With Claude (Anthropic):**
+```bash
+# Basic investigation
+python main.py cli -q "ransomware payments 2024"
+
+# Interactive mode (follow-up questions)
+python main.py cli -q "APT28 infrastructure" --interactive
+
+# Custom output file
+python main.py cli -q "credential dumps" -o my_report.md
+
+# Custom Claude model
+python main.py cli -q "zero day exploits" -m claude-opus-4-5-20250514
+```
+
+**With Ollama (Local models):**
+```bash
+# Make sure Ollama is running
+ollama pull llama3.1  # First time only
+
+# Run investigation with Ollama
+python main.py cli -q "ransomware payments 2024" -m llama3.1
+
+# Interactive mode with Ollama
+python main.py cli -q "threat actor APT28" -m mistral --interactive
+
+# Use any Ollama model
+python main.py cli -q "credential dumps" -m deepseek-r1 -o report.md
+```
+
+### CLI Options
+
+```
+Robin: AI-Powered Dark Web OSINT Agent
+
+Commands:
+  cli  Run investigation from command line
+
+CLI Options:
+  -q, --query TEXT     Investigation query (required)
+  -o, --output TEXT    Output filename for report
+  -i, --interactive    Enable follow-up questions
+  -m, --model TEXT     Model to use: Claude (claude-*) or Ollama (default: claude-sonnet-4-20250514)
+  -h, --help           Show help message
+
+Examples:
+  # Claude (Anthropic)
+  python main.py cli -q "ransomware payments"
+  python main.py cli -q "threat actor APT28" --interactive
+  
+  # Ollama (local)
+  python main.py cli -q "dark web marketplaces" -m llama3.1 -o report.md
+```
+
+### Python API
+
+```python
+import asyncio
+from agent import RobinAgent, run_investigation
+
+# Simple one-shot investigation with Claude
+async def main():
+    result = await run_investigation("ransomware payments 2024")
+    print(result.text)
+
+# With Ollama
+async def main_ollama():
+    agent = RobinAgent(model="llama3.1")
+    result_text = ""
+    async for chunk in agent.investigate("ransomware payments 2024"):
+        result_text += chunk
+    print(result_text)
+
+# Interactive session with streaming
+async def interactive():
+    def on_text(text):
+        print(text, end="", flush=True)
+    
+    def on_tool_use(name, input_data):
+        print(f"\n[Using tool: {name}]")
+    
+    # Works with both Claude and Ollama
+    agent = RobinAgent(
+        on_text=on_text,
+        on_tool_use=on_tool_use,
+        model="llama3.1"  # or "claude-sonnet-4-20250514"
+    )
+    
+    async for chunk in agent.investigate("threat actor APT28"):
+        pass  # on_text handles output
+    
+    # Follow-up questions
+    async for chunk in agent.follow_up("What TTPs do they use?"):
+        pass
+
+asyncio.run(main())
 ```
 
 ---
 
-## Usage (CLI/Development Mode)
+## Configuration
+
+Environment variables (or `.env` file):
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ANTHROPIC_API_KEY` | Anthropic API key (for Claude models) | Required for Claude |
+| `OLLAMA_BASE_URL` | Ollama server URL (for local models) | `http://127.0.0.1:11434` |
+| `TOR_SOCKS_PROXY` | Tor SOCKS5 proxy URL | `socks5h://127.0.0.1:9050` |
+| `ROBIN_MODEL` | Default model to use | `claude-sonnet-4-20250514` |
+| `ROBIN_MODEL` | Claude model to use | `claude-sonnet-4-5-20250514` |
+| `MAX_AGENT_TURNS` | Max agent reasoning turns | `20` |
+| `MAX_SEARCH_WORKERS` | Concurrent search threads | `5` |
+| `MAX_SCRAPE_WORKERS` | Concurrent scrape threads | `5` |
+
+---
+
+## Project Structure
+
+```
+robin/
+├── agent/
+│   ├── __init__.py       # Module exports
+│   ├── client.py         # RobinAgent with session management
+│   ├── tools.py          # Custom MCP tools
+│   ├── prompts.py        # System prompts for all agents
+│   └── subagents.py      # Specialized sub-agent classes
+├── backend/              # FastAPI backend
+│   └── app/
+│       ├── api/routes/   # API endpoints
+│       ├── db/           # Database models
+│       ├── services/     # Agent and report services
+│       └── main.py       # FastAPI application
+├── frontend/             # Next.js frontend
+│   └── src/
+│       ├── app/          # Next.js pages
+│       ├── components/   # React components
+│       └── stores/       # Zustand state management
+├── core/
+│   ├── search.py         # Dark web search engine integration
+│   └── scrape.py         # Tor-based content scraping
+├── tests/
+│   ├── test_client.py    # Agent client tests
+│   ├── test_tools.py     # Tool function tests
+│   ├── test_subagents.py # Sub-agent tests
+│   └── test_prompts.py   # Prompt validation tests
+├── config.py             # Configuration management
+├── main.py               # CLI entry point
+└── requirements.txt      # Python dependencies
+```
+
+---
+
+## Testing
 
 ```bash
-Robin: AI-Powered Dark Web OSINT Tool
+# Run all tests
+pytest tests/ -v
 
-options:
-  -h, --help            show this help message and exit
-  --model {gpt-4.1,claude-3-5-sonnet-latest,llama3.1,gemini-2.5-flash}, -m {gpt4o,gpt-4.1,claude-3-5-sonnet-latest,llama3.1,gemini-2.5-flash}
-                        Select LLM model (e.g., gpt4.1, claude sonnet 3.5, ollama models, gemini 2.5 flash)
-  --query QUERY, -q QUERY
-                        Dark web search query
-  --threads THREADS, -t THREADS
-                        Number of threads to use for scraping (Default: 5)
-  --output OUTPUT, -o OUTPUT
-                        Filename to save the final intelligence summary. If not provided, a filename based on the
-                        current date and time is used.
+# Run with coverage
+pytest tests/ --cov=agent --cov-report=html
 
-Example commands:
- - robin -m gpt4.1 -q "ransomware payments" -t 12
- - robin --model gpt4.1 --query "sensitive credentials exposure" --threads 8 --output filename
- - robin -m llama3.1 -q "zero days"
- - robin -m gemini-2.5-flash -q "zero days"
+# Run specific test file
+pytest tests/test_tools.py -v
 ```
 
 ---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request if you have major feature updates.
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-- Fork the repository
-- Create your feature branch (git checkout -b feature/amazing-feature)
-- Commit your changes (git commit -m 'Add some amazing feature')
-- Push to the branch (git push origin feature/amazing-feature)
-- Open a Pull Request
-
-Open an Issue for any of these situations:
-- If you spot a bug or bad code
-- If you have a feature request idea
-- If you have questions or doubts about usage
-- If you have minor code changes
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Run tests (`pytest tests/ -v`)
+4. Commit your changes (`git commit -m 'Add some amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
 
 ---
 
 ## Acknowledgements
 
-- Idea inspiration from [Thomas Roccia](https://x.com/fr0gger_) and his demo of [Perplexity of the Dark Web](https://x.com/fr0gger_/status/1908051083068645558).
-- Tools inspiration from my [OSINT Tools for the Dark Web](https://github.com/apurvsinghgautam/dark-web-osint-tools) repository.
-- LLM Prompt inspiration from [OSINT-Assistant](https://github.com/AXRoux/OSINT-Assistant) repository.
-- Logo Design by my friend [Tanishq Rupaal](https://github.com/Tanq16/)
+- Idea inspiration from [Thomas Roccia](https://x.com/fr0gger_) and his demo of [Perplexity of the Dark Web](https://x.com/fr0gger_/status/1908051083068645558)
+- Tools inspiration from [OSINT Tools for the Dark Web](https://github.com/apurvsinghgautam/dark-web-osint-tools) repository
+- LLM Prompt inspiration from [OSINT-Assistant](https://github.com/AXRoux/OSINT-Assistant) repository
+- Logo Design by [Tanishq Rupaal](https://github.com/Tanq16/)
 - Workflow Design by [Chintan Gurjar](https://www.linkedin.com/in/chintangurjar)
-
-
-
-
-
